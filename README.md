@@ -26,6 +26,8 @@ The models considered include Logistic Regression, Random Forest, SVM, XGBoost, 
 - `05_explainability.R` – model interpretation and explainability
 - `data_clean.csv` – cleaned NHANES dataset used for the project
 
+The repository includes the cleaned NHANES dataset used for the analysis. The original NHANES `.xpt` source files are not included.
+
 ## Current Status
 
 This repository contains our current code and dataset for the DS 340W midterm project. The analysis is still in development and will continue to be updated as we test the proposed methods.
