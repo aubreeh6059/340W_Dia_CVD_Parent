@@ -31,3 +31,34 @@ The repository includes the cleaned NHANES dataset used for the analysis. The or
 ## Current Status
 
 This repository contains our current code and dataset for the DS 340W midterm project. The analysis is still in development and will continue to be updated as we test the proposed methods.
+
+
+## Parent Paper Replication Progress
+
+We conducted an initial replication of the parent paper using the cleaned NHANES 2017–2023 dataset (12,382 participants).
+
+### Methods
+- **Class distribution:** 87.74% without CVD and 12.26% with CVD
+- **Train/test split:** 80/20, stratified by outcome
+- **Feature selection:** RFE with random forests, using 30 selected predictors
+- **Class balancing:** ROSE applied to the model training data
+- **Models:** Logistic Regression, Random Forest, SVM, XGBoost, and LightGBM
+
+### Initial Results
+
+| Model | Accuracy | Recall (CVD) | AUROC |
+|---|---|---|---|
+| Logistic Regression | 68.61% | 77.23% | 0.8014 |
+| Random Forest | 66.91% | 78.22% | 0.7905 |
+| SVM | 69.05% | 74.59% | 0.7878 |
+| XGBoost | 67.80% | 76.24% | 0.7875 |
+| LightGBM | 66.38% | 78.55% | 0.7889 |
+
+These are preliminary results from a parent-paper-style replication attempt. Additional work is needed to verify that the preprocessing, feature selection, and model settings match the published methodology.
+
+### Files
+- `06_parent_paper_baseline.R` — Initial baseline models
+- `07_parent_paper_replication.R` — Updated five-model replication
+- `output/tables/baseline_comparison.csv` — Baseline results
+- `output/tables/parent_paper_replication.csv` — Updated model results
+- `output/tables/replication_selected_features.csv` — Selected predictors
