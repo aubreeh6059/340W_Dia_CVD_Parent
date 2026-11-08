@@ -57,12 +57,13 @@ cat("Train:", nrow(train), "| Test:", nrow(test), "\n")
 # 3. RECURSIVE FEATURE ELIMINATION
 # --------------------------------------------------
 
-cat("Running RFE (30 features, 5-fold CV)...\n")
+cat("Running RFE (30 features, 5-fold CV repeated 5 times)...\n")
 
 rfe_ctrl <- caret::rfeControl(
   functions = caret::rfFuncs,
-  method = "cv",
+  method = "repeatedcv",
   number = 5,
+  repeats = 5,
   verbose = FALSE
 )
 
@@ -75,30 +76,8 @@ rfe_fit <- caret::rfe(
   rfeControl = rfe_ctrl
 )
 
-# Force selection of exactly 30 predictors using
-# the final RFE feature ranking.
-ranked_features <- as.character(rfe_fit$variables$var)
-
-# Prefer the ranking from the final model when available.
-if (!is.null(rfe_fit$fit$importance)) {
-  importance <- randomForest::importance(rfe_fit$fit)
-  if (is.matrix(importance)) {
-    importance <- importance[, ncol(importance)]
-  }
-  ranked_features <- names(sort(importance, decreasing = TRUE))
-}
-
-features <- unique(ranked_features)
-features <- features[features %in% setdiff(names(train), "y")]
-
-# Fill any missing feature slots from the original columns.
-if (length(features) < 30) {
-  remaining <- setdiff(setdiff(names(train), "y"), features)
-  features <- c(features, remaining)
-}
-
-features <- head(features, 30)
-
+# Select exactly 30 predictors from RFE's final model
+features <- caret::predictors(rfe_fit)
 stopifnot(length(features) == 30)
 stopifnot(all(features %in% names(train)))
 
@@ -131,11 +110,21 @@ valid <- train[-sub_idx, , drop = FALSE]
 
 set.seed(75)
 
-balanced <- ROSE::ROSE(
+balanced_subtrain <- ROSE::ROSE(
   y ~ .,
   data = subtrain,
   seed = 75
 )$data
+
+balanced <- ROSE::ROSE(
+  y ~ .,
+  data = train,
+  seed = 75
+)$data
+
+balanced_subtrain$y <- factor(
+  balanced_subtrain$y, levels = c(0, 1)
+)
 
 balanced$y <- factor(balanced$y, levels = c(0, 1))
 
@@ -153,11 +142,15 @@ make_x <- function(d) {
 }
 
 X_train <- make_x(balanced)
-X_valid <- make_x(valid)
-X_test <- make_x(test)
-
 y_train <- as.integer(as.character(balanced$y))
+
+X_subtrain <- make_x(balanced_subtrain)
+y_subtrain <- as.integer(as.character(balanced_subtrain$y))
+
+X_valid <- make_x(valid)
 y_valid <- as.integer(as.character(valid$y))
+
+X_test <- make_x(test)
 y_test <- as.integer(as.character(test$y))
 
 # --------------------------------------------------
@@ -305,8 +298,8 @@ results[[3]] <- score("SVM", svm_prob)
 cat("Training XGBoost...\n")
 
 dtrain <- xgboost::xgb.DMatrix(
-  X_train,
-  label = y_train
+  X_subtrain,
+  label = y_subtrain
 )
 
 dvalid <- xgboost::xgb.DMatrix(
@@ -338,7 +331,35 @@ xgb_fit <- xgboost::xgb.train(
   verbose = 0
 )
 
-cat("XGBoost training completed.\n")
+best_rounds <- as.integer(xgboost::xgb.attributes(xgb_fit)$best_iteration)
+
+if (is.null(best_rounds) || best_rounds < 1) {
+  stop("XGBoost did not return a valid best iteration.")
+}
+
+dfull <- xgboost::xgb.DMatrix(
+  X_train,
+  label = y_train
+)
+
+set.seed(123)
+
+xgb_fit <- xgboost::xgb.train(
+  params = list(
+    objective = "binary:logistic",
+    eval_metric = "auc",
+    max_depth = 8,
+    eta = 0.1,
+    colsample_bytree = 0.8,
+    subsample = 0.8,
+    min_child_weight = 1
+  ),
+  data = dfull,
+  nrounds = best_rounds,
+  verbose = 0
+)
+
+cat("XGBoost final training completed.\n")
 
 xgb_prob <- predict(xgb_fit, dtest)
 
@@ -351,8 +372,8 @@ results[[4]] <- score("XGBoost", xgb_prob)
 cat("Training LightGBM...\n")
 
 lgb_train <- lightgbm::lgb.Dataset(
-  X_train,
-  label = y_train
+  X_subtrain,
+  label = y_subtrain
 )
 
 lgb_valid <- lightgbm::lgb.Dataset(
@@ -368,12 +389,40 @@ lgb_fit <- lightgbm::lgb.train(
     metric = "auc",
     learning_rate = 0.01,
     num_leaves = 31,
+    scale_pos_weight = 1,
     verbosity = -1
   ),
   data = lgb_train,
   nrounds = 1000,
   valids = list(validation = lgb_valid),
   early_stopping_rounds = 50,
+  verbose = -1
+)
+
+best_lgb_rounds <- lgb_fit$best_iter
+
+if (is.null(best_lgb_rounds) || best_lgb_rounds < 1) {
+  stop("LightGBM did not return a valid best iteration.")
+}
+
+lgb_full <- lightgbm::lgb.Dataset(
+  X_train,
+  label = y_train
+)
+
+set.seed(123)
+
+lgb_fit <- lightgbm::lgb.train(
+  params = list(
+    objective = "binary",
+    metric = "auc",
+    learning_rate = 0.01,
+    num_leaves = 31,
+    scale_pos_weight = 1,
+    verbosity = -1
+  ),
+  data = lgb_full,
+  nrounds = best_lgb_rounds,
   verbose = -1
 )
 
