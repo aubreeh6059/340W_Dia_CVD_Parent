@@ -16,6 +16,16 @@ We compare different class-balancing approaches, including no resampling, ROSE, 
 
 The models considered include Logistic Regression, Random Forest, SVM, XGBoost, and LightGBM. Performance is evaluated using F1-score, recall, AUROC, and accuracy. We also plan to compare performance across age groups and use SHAP for model interpretation.
 
+## Preprocessing comparison
+
+Run `Rscript 08_preprocessing_comparison.R` from the repository root to compare all 60 combinations of four resampling methods (none, ROSE, SMOTE, and random oversampling), three feature-selection choices (none, RFE, and ANOVA), and five classifiers. The script makes a stratified 60/20/20 train/validation/test split. Feature selection and resampling are fit using training data only. The validation set ranks combinations by F1-score, with AUROC as the tie-breaker; the held-out test set is reserved for final reporting.
+
+The script writes `preprocessing_comparison_validation.csv` and `preprocessing_comparison_test.csv` under `output/tables/`. Both include accuracy, F1-score, AUROC, and recall. It also saves the selected features and, when age is available, test metrics for age groups 18–39, 40–59, and 60+. Install `caret`, `ROSE`, `smotefamily`, `randomForest`, `e1071`, `xgboost`, `lightgbm`, and `pROC` before running.
+
+Classifier settings follow the parent-paper replication: logistic regression uses a binomial GLM; random forest uses 500 trees and `mtry = 5`; SVM uses an RBF kernel, cost 1, and gamma 1/30; XGBoost uses depth 8, eta 0.1, 0.8 row and column subsampling, minimum child weight 1, and up to 1,000 rounds with 50-round early stopping; LightGBM uses learning rate 0.01, 31 leaves, and up to 1,000 rounds with 50-round early stopping. Boosting early stopping uses a separate 15% inner holdout from the training partition, then refits on the full outer training partition at the selected number of rounds. The RFE option uses 30 features and repeated five-fold cross-validation (five repeats). No hyperparameter grid search is run.
+
+After the comparison finishes, run `source("09_make_results_figures.R")` from the repository root to create heatmaps for all four metrics on both validation and test data, plus age-group figures when the age results CSV is available. Figures are saved as PNG and PDF files under `figures/results/`. This step requires `ggplot2`, `dplyr`, and `tidyr`.
+
 ## Repository Contents
 
 - `00_setup.R` – package setup and project configuration
